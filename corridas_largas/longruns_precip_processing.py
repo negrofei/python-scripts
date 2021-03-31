@@ -1,7 +1,19 @@
 """
 This script takes the directory of a long simulation with tesla-larga as argument
 and returns the wrfouts processed divided in files per field
+
+for execution
+
+$ python3 longruns_precip_processing.py <dir_of_chunks>
+
+returns
+
+rains_acum**_alltimes_wrfout_<dir_of_chunks>.nc
+
 """
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Paquetes
 
 from Docpy.functions import printer
 import numpy as np
@@ -13,7 +25,10 @@ import time
 from datetime import datetime, timedelta
 import cdo
 import glob
-# defino la función que procesa un archivo
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+### Defino la función que procesa un archivo
 
 def process_wrfouts( wrfouts_path ):
     print('PROCESS:', os.getpid())
@@ -22,7 +37,7 @@ def process_wrfouts( wrfouts_path ):
     print('Chunk:',chunk)
     print('Leo los datasets')
     wrflist = [Dataset(wrfout) for wrfout in wrfouts_path]
-    wrfori = wrflist[0] # agarro un wrf para sacar metadata
+    wrfori = wrflist[0]     # agarro un wrf para sacar metadata
     wrffin = wrflist[-1]
     print('Obtengo tiempos')
     tiempos =  wrf.getvar(wrflist, 'XTIME', timeidx=wrf.ALL_TIMES, method='cat') 
@@ -35,22 +50,26 @@ def process_wrfouts( wrfouts_path ):
 #    rain = wrf.getvar(wrflist, 'RAINC', timeidx=wrf.ALL_TIMES, method='cat') + wrf.getvar(wrflist, 'RAINSH', timeidx=wrf.ALL_TIMES, method='cat') + wrf.getvar(wrflist, 'RAINNC', timeidx=wrf.ALL_TIMES, method='cat')
     
     ### Extraigo partes del código de script de extract_precip. 
-    wrfori_name = '_'.join([
-        os.path.split(wrfori.filepath())[-1][:-9],
-        os.path.split(wrffin.filepath())[-1].split('_')[2]+'.nc'
-        ])
-    
-    new_wrf_name = '_'.join(['precip_acum',acum, wrfori_name])
+    wrf_chunk_name = '_'.join(
+            [
+                os.path.split(wrfori.filepath())[-1][:-9],  
+                # me quedo con el string 'wrfout_d0*_AAAA-MM-DD
+                os.path.split(wrffin.filepath())[-1].split('_')[2]+'.nc',  
+                # me quedo con la fecha de fin del chunk AAAA-MM-DD
+                ]
+            )
+
+    new_wrf_name = '_'.join(['rains_acum',acum, wrf_chunk_name])
     print('Nombre del archivo:',new_wrf_name)
 
     dataset = Dataset( 
-            os.path.join(chunk,new_wrf_name),
+            os.path.join(chunk, new_wrf_name),
             'w',
             format=wrfori.file_format
             )
     print('Creating lonlats...')
-    lats = wrf.getvar(wrflist[0], 'lat')
-    lons = wrf.getvar(wrflist[0], 'lon')
+    lats = wrf.getvar(wrfori, 'lat')
+    lons = wrf.getvar(wrfori, 'lon')
 
     # Creo las dimensiones del archivo en base al archivo original 
     dataset.createDimension('lev_2',1)
@@ -82,30 +101,23 @@ def process_wrfouts( wrfouts_path ):
 
     # Información del archivo
     print('Creating file info...')
-    dataset.description = ' '.join(['Precipitacion extraida desde',
-                                    os.path.abspath(chunk),
-                                    'a partir del script:',
-                                    os.path.abspath(sys.argv[0])])
+    dataset.description = ' '.join(
+            [
+                'Precipitacion extraida desde',
+                os.path.abspath(chunk),
+                'a partir del script:',
+                os.path.abspath(sys.argv[0]),
+                ],
+            )
 
     dataset.history = '\n'.join(['Archivo creado el: ' + time.ctime( time.time() ), ])
     dataset.source = ''
-
-#    # Creo la variable de precipitacion
-#    print('Creating precipitation acum',acum)
-#    precip = dataset.createVariable('precip', np.float64, ('time','lat','lon'))
-#    precip.units = 'mm'
-#    precip.long_name = 'Precipitación acumulada HACIA ATRAS en {} hs '.format(acum)
-#    
-#    inter = int(int(acum)/delta_t_hs)
-#    precip_acum = np.ma.empty([len(time_list[::inter]),rain.shape[1],rain.shape[2]])
-#    for r in range(1,precip_acum.shape[0]):
-#        precip_acum[r,:,:] = rain[(r)*inter,:]-rain[r-1*inter,:]
 
     # No voy a acumular la precipitacion acá, sino voy a hacerlo compatible con Docpy
     rainvars = ['RAINNC','RAINC','RAINSH']
     for var in rainvars:
         shape = wrf.getvar(wrflist, var, timeidx=0, method='cat').shape
-        array = np.zeros( (len(tiempos), 1,)+shape )
+        array = np.zeros( (len(tiempos), 1,) + shape )
         for t in range(len(time_list[::inter])):
             array[t,:] = wrf.getvar( wrflist, var, timeidx=t, method='cat')
 
@@ -117,17 +129,32 @@ def process_wrfouts( wrfouts_path ):
         variable.description = campo.description
         variable[:] = array
 
-    times[:] = [date2num(datetime.strptime(time_list[::inter][j],'%Y-%m-%d %H:%M:%S'), units = times.units, calendar = times.calendar) for j in range(len(time_list[::inter]))]
+    times[:] = [
+            date2num(
+                datetime.strptime(
+                    time_list[::inter][j],
+                    '%Y-%m-%d %H:%M:%S'
+                    ),
+                units = times.units,
+                calendar = times.calendar
+                )
+            for j in range(len(time_list[::inter]))
+            ]
 
     dataset.close()
     print('Archivo',new_wrf_name,'creado!')
     return None
 
-# funcion para ensamblar los archivos con CDO
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+### Funcion para ensamblar los archivos con CDO
+
 def concatenate( list_of_files, dirout, nameout ):
     c = cdo.Cdo()
     c.cat(input=list_of_files, output=os.path.join(dirout,nameout) )
     return None
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if __name__ == '__main__':
     ### Directorios
@@ -141,15 +168,15 @@ if __name__ == '__main__':
 
         process_wrfouts( wrfouts_path )
     
-    ### una vez termina de armar el precip_acum03.... lo ensamblo en un solo archivo
+    ### una vez termina de armar el precip_acum03_<chunk>.nc lo ensamblo en un solo archivo
     list_of_files = []
     for chunk in chunks:
-        file = glob.glob(os.path.join(corrida_larga_name,chunk,'precip*'))
+        file = glob.glob(os.path.join(corrida_larga_name,chunk,'rains*'))
         list_of_files = list_of_files + file
         print(file)
     dirout = os.path.abspath(corrida_larga_name)
     nameout = '_'.join([ \
-                        'precip',\
+                        'rains',\
                         'acum03',\
                         'alltimes',\
                         'wrfout',\
