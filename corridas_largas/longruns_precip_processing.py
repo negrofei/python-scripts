@@ -8,7 +8,7 @@ $ python3 longruns_precip_processing.py <dir_of_chunks>
 
 returns
 
-rains_acum**_alltimes_wrfout_<dir_of_chunks>.nc
+rains_every**_alltimes_wrfout_<dir_of_chunks>.nc
 
 """
 
@@ -43,9 +43,9 @@ def process_wrfouts( wrfouts_path ):
     tiempos =  wrf.getvar(wrflist, 'XTIME', timeidx=wrf.ALL_TIMES, method='cat') 
     time_list = [str(num2date(tiempos[i], units=tiempos.units)) for i in range(len(tiempos[:]))]
     delta_t_hs = num2date(tiempos[1]-tiempos[0], units=tiempos.units).hour
-    acum = '{:02d}'.format(3)
-    print('Acumulo cada ',acum,'horas') 
-    inter = int(int(acum)/delta_t_hs)
+    every = '{:02d}'.format(3)
+    print('Output every ',every,'hours') 
+    inter = int(int(every)/delta_t_hs)
 #    print('Obtengo la RAIN')    
 #    rain = wrf.getvar(wrflist, 'RAINC', timeidx=wrf.ALL_TIMES, method='cat') + wrf.getvar(wrflist, 'RAINSH', timeidx=wrf.ALL_TIMES, method='cat') + wrf.getvar(wrflist, 'RAINNC', timeidx=wrf.ALL_TIMES, method='cat')
     
@@ -59,7 +59,7 @@ def process_wrfouts( wrfouts_path ):
                 ]
             )
 
-    new_wrf_name = '_'.join(['rains_acum',acum, wrf_chunk_name])
+    new_wrf_name = '_'.join(['rains_every',every, wrf_chunk_name])
     print('Nombre del archivo:',new_wrf_name)
 
     dataset = Dataset( 
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     ### Directorios
 
     corrida_larga_name = sys.argv[1]
-    chunks = os.listdir(os.path.abspath(corrida_larga_name))
+    chunks = glob.glob(os.path.join(os.path.abspath(corrida_larga_name),'20*'))
     chunks.sort()
     for chunk in chunks:
         wrfouts_path = [os.path.join(corrida_larga_name, chunk,file) for file in os.listdir(os.path.join(corrida_larga_name, chunk)) if file.startswith('wrfout')]
@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
         process_wrfouts( wrfouts_path )
     
-    ### una vez termina de armar el precip_acum03_<chunk>.nc lo ensamblo en un solo archivo
+    ### una vez termina de armar el rains_every*_<chunk>.nc lo ensamblo en un solo archivo
     list_of_files = []
     for chunk in chunks:
         file = glob.glob(os.path.join(corrida_larga_name,chunk,'rains*'))
@@ -177,7 +177,7 @@ if __name__ == '__main__':
     dirout = os.path.abspath(corrida_larga_name)
     nameout = '_'.join([ \
                         'rains',\
-                        'acum03',\
+                        'every'+every,\
                         'alltimes',\
                         'wrfout',\
                         corrida_larga_name+'.nc'])
