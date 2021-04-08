@@ -56,14 +56,11 @@ def process_wrfouts( wrfouts_path, var, levels=[1000.,950.,900.,850.,800.,750.,7
                 # me quedo con la fecha de fin del chunk AAAA-MM-DD
                 ]
             )
-    # El nombre del archivo tiene que contener el nivel o cantidad de niveles verticales.
+    
+    
+    new_wrf_name_beginning = filename_generator(var, levels)
 
-    if len(levels)==1:
-        lev_name = str(int(levels[0]))+'hpa'
-    elif len(levels)>1:
-        lev_name = str(len(levels))+'lvls'
-
-    new_wrf_name = '_'.join([var,'every',every, lev_name, wrf_chunk_name])
+    new_wrf_name = '_'.join([new_wrf_name_beginning,'every', every, wrf_chunk_name])
     print('Nombre del archivo:',new_wrf_name)
 
     dataset = Dataset( 
@@ -134,15 +131,16 @@ def process_wrfouts( wrfouts_path, var, levels=[1000.,950.,900.,850.,800.,750.,7
     if np.size(shape) == 3:
         array = np.zeros( (len(tiempos), z,y,x) )
         dims = tuple(['time','lev','lat','lon'])
+        for t in range(len(time_list[::inter])):
+            array[t,:] = wrf.interplevel(
+                                         field3d=wrf.getvar( wrflist, var, timeidx=t, method='cat'),
+                                         vert=p,
+                                         desiredlev=levels)
     elif np.size(shape) == 2:
         array = np.zeros( (len(tiempos), 1,y,x) )
         dims = tuple(['time','lev_2','lat','lon'])
-
-    for t in range(len(time_list[::inter])):
-        array[t,:] = wrf.interplevel(
-                                     field3d=wrf.getvar( wrflist, var, timeidx=t, method='cat'),
-                                     vert=p,
-                                     desiredlev=levels)
+        for t in range(len(time_list[::inter])):
+            array[t,:] = wrf.getvar( wrflist, var, timeidx=t, method='cat' )
 
     variable = dataset.createVariable(var.lower(), np.float64, dims)
     # unidades y description
@@ -167,6 +165,56 @@ def process_wrfouts( wrfouts_path, var, levels=[1000.,950.,900.,850.,800.,750.,7
     print('Archivo',new_wrf_name,'creado!')
     return None
 
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+def check_if_var_exists(variable):
+    assert corrida_larga_name
+    
+    dir_to_mokdata = sorted(                                # Esto me deja con el primer directorio
+            os.listdir(                                     # para levantar un archivo cualquiera
+                os.path.abspath(corrida_larga_name)
+                )
+            )[0]
+
+    file_to_mokdata = list(                                     # Esto me agarra los archivos en el 
+            filter(                                             # dir_to_mok y se queda solo con los
+                lambda x: x.startswith('wrfout_d0'), sorted(    # que empiezan con wrfout_d0
+                    os.listdir(                                 # luego me quedo con el primer item
+                        os.path.join(corrida_larga_name, dir_to_mokdata)    
+                        )
+                    )
+                )
+            )[0]
+
+    # Chequeo que la variable sea válida
+    mokdata = Dataset(
+            os.path.join(
+                './',
+                corrida_larga_name,
+                dir_to_mokdata,
+                file_to_mokdata))
+            
+    assert (variable in [wrf.routines._FUNC_MAP]) or (variable in [*mokdata.variables]) or (wrf.routines._undo_alias(variable) in wrf.routines._VALID_KARGS), "{} should be of the available wrf-python diagnostics or a WRFOUT valid variable".format(variable)
+    return mokdata
+
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+def filename_generator(variable, levels=None):
+ 
+    mokdata = check_if_var_exists(variable)
+    shape = wrf.getvar( mokdata, variable).shape
+    if np.size(shape) == 2:
+        lev_name = 'single_lvl'
+    elif np.size(shape) == 3:
+        if levels:
+            # El nombre del archivo tiene que contener el nivel o cantidad de niveles verticales.
+            if len(levels)==1:
+                lev_name = str(int(levels[0]))+'hpa'
+            elif len(levels)>1:
+                lev_name = str(len(levels))+'lvls'
+
+    new_wrf_name_beginning = '_'.join([variable,lev_name])
+    return new_wrf_name_beginning
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 ### Funcion para ensamblar los archivos con CDO
@@ -181,11 +229,10 @@ def concatenate( list_of_files, dirout, nameout ):
 if __name__ == '__main__':
     ### Directorios
 
-    corrida_larga_name = sys.argv[1]
-    variable = input('Choose the variable to extract:\t')
-    # Chequeo que la variable sea válida
-    mokdata = Dataset(os.path.join('./',corrida_larga_name,'20151001000000-20151006000000','wrfout_d01_2015-10-01_00:00:00'))
-    assert (variable in [wrf.routines._FUNC_MAP]) or (variable in [*mokdata.variables]) or (wrf.routines._undo_alias(variable) in wrf.routines._VALID_KARGS), "{} should be of the available wrf-python diagnostics or a WRFOUT valid variable".format(variable)
+    corrida_larga_name = sys.argv[1]                        # Carpeta donde se encuentran los files
+    variable = input('Choose the variable to extract:\t')   # Variable para procesar
+    
+    ### Entro a cada chunk y hago un archivo del estilo <variable>_every*_<chunk>.nc
     chunks = glob.glob(os.path.join(os.path.abspath(corrida_larga_name),'20*'))
     chunks.sort()
     for chunk in chunks:
@@ -194,10 +241,10 @@ if __name__ == '__main__':
 
         process_wrfouts( wrfouts_path, variable, levels=[850.] )
     
-    ### una vez termina de armar el geopt_every*_<chunk>.nc lo ensamblo en un solo archivo
+    ### Una vez termina de armar el <variable>_every*_<chunk>.nc lo ensamblo en un solo archivo
     list_of_files = []
     for chunk in chunks:
-        file = glob.glob(os.path.join(corrida_larga_name,chunk,'geopt*'))
+        file = glob.glob(os.path.join(corrida_larga_name,chunk, variable+'*'))
         list_of_files = list_of_files + file
         print(file)
     
