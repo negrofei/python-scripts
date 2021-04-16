@@ -230,38 +230,58 @@ if __name__ == '__main__':
     ### Directorios
 
     corrida_larga_name = sys.argv[1]                        # Carpeta donde se encuentran los files
-    variable = input('Choose the variable to extract:\t')   # Variable para procesar
-    
-    ### Entro a cada chunk y hago un archivo del estilo <variable>_every*_<chunk>.nc
-    chunks = glob.glob(os.path.join(os.path.abspath(corrida_larga_name),'20*'))
-    chunks.sort()
-    for chunk in chunks:
-        wrfouts_path = [os.path.join(corrida_larga_name, chunk,file) for file in os.listdir(os.path.join(corrida_larga_name, chunk)) if file.startswith('wrfout')]
-        wrfouts_path.sort()
+    #variable = input('Choose the variable to extract:\t')   # Variable para procesar
 
-        process_wrfouts( wrfouts_path, variable, levels=[850.] )
-    
-    ### Una vez termina de armar el <variable>_every*_<chunk>.nc lo ensamblo en un solo archivo
-    list_of_files = []
-    for chunk in chunks:
-        file = glob.glob(os.path.join(corrida_larga_name,chunk, variable+'*'))
-        list_of_files = list_of_files + file
-        print(file)
-    
-    # Me quedo con la raiz del nombre de los archivos, ya que contiene la info de cuántos niveles
-    # hay
-    
-    root = os.path.split(file[0])[-1].split('_wrfout')[0]
+    # Voy a automatizar el proceso de seleccion de variables con la siguiente lista
+    # (RAINS Y MCAPE DEBEN HACERSE POR SEPARADO EN OTRO SCRIPT):
+    #
+    #   *   avo         |   Absolute Vorticity
+    #   *   eth         |   Equivalent Potential Temperature
+    #   *   mdbz        |   Maximum Reflectivity
+    #   *   geopt       |   Geopotential for the Mass Grid
+    #   *   omg         |   Omega
+    #   *   pressure    |   Full Model Pressure
+    #   *   rh          |   Relative Humidity
+    #   *   tc          |   Temperature in Celcius
+    #   *   td          |   Dew Point Temperature
+    #   *   ua          |   U-component of Wind on Mass Points
+    #   *   va          |   V-component of Wind on Mass Points
+    #   *   wa          |   W-component of Wind on Mass Points
+    #   *   QVAPOR      |   Water vapor mixing ratio
+    #   *   OLR         |   TOA OUTGOING LONGWAVE
 
-    dirout = os.path.abspath(corrida_larga_name)
-    nameout = '_'.join(
-            [
-                root,
-                'alltimes',
-                'wrfout',
-                corrida_larga_name+'.nc'
-                ]
-            )
-    
-    concatenate(list_of_files, dirout, nameout)
+    variables = ['avo','eth','mdbz', 'geopt','omg','pressure','rh','tc','td','ua','va','wa','QVAPOR','OLR']
+    for variable in variables:
+        ### Entro a cada chunk y hago un archivo del estilo <variable>_every*_<chunk>.nc
+        chunks = glob.glob(os.path.join(os.path.abspath(corrida_larga_name),'20*'))
+        chunks.sort()
+        for chunk in chunks:
+            wrfouts_path = [os.path.join(corrida_larga_name, chunk,file) for file in os.listdir(os.path.join(corrida_larga_name, chunk)) if file.startswith('wrfout')]
+            wrfouts_path.sort()
+
+            process_wrfouts( wrfouts_path, variable )
+        
+        ### Una vez termina de armar el <variable>_every*_<chunk>.nc lo ensamblo en un solo archivo
+        list_of_files = []
+        for chunk in chunks:
+            file = glob.glob(os.path.join(corrida_larga_name,chunk, variable+'*'))
+            list_of_files = list_of_files + file
+            print(file)
+        
+        # Me quedo con la raiz del nombre de los archivos, ya que contiene la info de cuántos niveles
+        # hay
+        
+        root = os.path.split(file[0])[-1].split('_wrfout')[0]
+
+        dirout = os.path.abspath(corrida_larga_name)
+        nameout = '_'.join(
+                [
+                    root,
+                    'alltimes',
+                    'wrfout',
+                    corrida_larga_name+'.nc'
+                    ]
+                )
+        
+        concatenate(list_of_files, dirout, nameout)
 
