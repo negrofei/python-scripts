@@ -1,5 +1,5 @@
 """
-Grafico todos los tiempos de la precipitation de la corrida larga
+Grafico mapas de todos los tiempos de la precipitation de la corrida larga
 
 for execution:
 
