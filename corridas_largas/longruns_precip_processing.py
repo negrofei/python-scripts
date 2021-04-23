@@ -158,8 +158,9 @@ def concatenate( list_of_files, dirout, nameout ):
 
 if __name__ == '__main__':
     ### Directorios
-
+    every = '{:02d}'.format(3)
     corrida_larga_name = sys.argv[1]
+    
     chunks = glob.glob(os.path.join(os.path.abspath(corrida_larga_name),'20*'))
     chunks.sort()
     for chunk in chunks:
