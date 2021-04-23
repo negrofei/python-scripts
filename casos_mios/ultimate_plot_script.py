@@ -34,7 +34,7 @@ except:
 
 while True:
     #opt = input('BOX4 o BOX4B o HR3?? ([1]/2/3) \t')
-    opt = '2'
+    opt = '3'
     if (opt.lower() == '1') or (opt == ''):
         box = Docpy.functions.utils['box']
         box_name = 'box4_chica'
@@ -45,7 +45,8 @@ while True:
         box_name = 'box4_grande'
         break
     elif opt.lower() == '3':
-        box = [-76.5693, -47.7057, -36.535, -15.3772]
+        #box = [-76.5693, -47.7057, -36.535, -15.3772]
+        box = Docpy.functions.utils['boxHR3']
         # esta caja es HR3
         box_name = 'box_HR3'
         break
@@ -92,8 +93,9 @@ while True:
 #        print('Escribí bien, pelotudo')
 
 #a=b=c=d='v'
-a=b=c=d='n'
-e = 'v'
+#a=b=c=d='n'
+#e = 'v'
+a = 'v'
 ########################################%% PLOT PRECIP %%############################################
 if a=='v':
     paleta = plt.get_cmap('gist_ncar')
@@ -420,7 +422,7 @@ if e == 'v':
         intervalo = 2
     else:
         intervalo = 1
-    era = Docpy.ERAI('/home/martin.feijoo/ERA-Interim/casos_mios/UV_ERAI_200503.nc')
+    era = Docpy.ERAI('/home/martin.feijoo/ERA-Interim/casos_mios/ERAI_pl200503_129-131-132-133.nc')
     latera, lonera = era.get_latlon()
     imin, imax, jmin, jmax = Docpy.functions.latlon_idx(latera, lonera, box)
     lista_lat = np.array([np.where(np.abs(lat-j)==np.min(np.abs(lat-j)))[0][0] for j in latera[jmin:jmax+1]])
