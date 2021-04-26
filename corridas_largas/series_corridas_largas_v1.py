@@ -3,7 +3,7 @@ Grafico series temporales de la precipitación de una determinada corrida larga 
 de datos que tenemos siempre: cmorph, imerg y mswep
 
 for execution:
-    $ python3 
+    $ python3 series_corridas_largas_v1.py 
 
 """
 
