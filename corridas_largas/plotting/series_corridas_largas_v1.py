@@ -23,19 +23,32 @@ import matplotlib.ticker as mtick
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import numpy as np
 from tqdm import tqdm
+import re
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 ### Rutas y configs
 
-wrf = Docpy.WRF(sys.argv[1])    # rains_acum03_alltimes_wrfout_<dir_of_chunks>.nc
+wrfs = [Docpy.WRF(sys.argv[1])]    # rains_acum03_alltimes_wrfout_<dir_of_chunks>.nc
+wrf = wrfs[0]
+if 'ensemble' in wrf.filename:
+    member_re = re.compile(r'^[Cc]\d')
+    for member in [x for x in os.listdir('..') if re.match(member_re, x)]:
+        wrfs.append( 
+                Docpy.WRF(
+                    glob.glob(
+                        os.path.join('..', member, 'rains*')
+                        )[0]
+                    )
+                )
+
 
 observaciones = [               # agarro los datos de 2015
         Docpy.Dato(glob.glob('/home/martin.feijoo/CMORPH/casos_mios/200501-201612_8km/*2015*')[0]),
         Docpy.Dato(glob.glob('/home/martin.feijoo/GPM/*2015*')[0]),
         Docpy.Dato(glob.glob('/home/martin.feijoo/MSWEP/0.1deg_3hly_data/*2015*')[0]),
         ]
-print('Se graficaran las series de lo siguiente\n',         # informo que archivos agarro
-        os.path.join(wrf.ruta,wrf.filename)+'\n')
+print('Se graficaran las series de lo siguiente',         # informo que archivos agarro
+        os.path.join(wrf.ruta,wrf.filename)+'\n', sep='\n')
 [print(os.path.join(obs.ruta,obs.filename)+'\n') for obs in observaciones]
 
 acum_list = [24, 6, 3]          # grafico para acumular cada 3 6 y 24
@@ -71,37 +84,50 @@ for acum in acum_list:                  # hago para todas las acumulaciones
     ppmean_obs = []
     time_obs = []
     for obs in observaciones:
-        Docpy.functions.printer('Mean PP',obs.name)
+        Docpy.functions.printer('Mean PP',obs.filename)
         ppmean_obs.append( np.nan_to_num( Docpy.precip.ppmean_box(obs, acum, box, offset=0) ) )
         time_obs.append( Docpy.functions.acum_time(obs, acum) )
 
     # WRF
-    Docpy.functions.printer('Mean PP', wrf.name)
-    ppmean_wrf = np.nan_to_num( Docpy.precip.ppmean_box(wrf, acum, box, offset=0) )
-    time_wrf = wrf.acum_time(acum)
+    ppmean_wrf = []
+    time_wrf = []
+    for worf in wrfs:
+        Docpy.functions.printer('Mean PP', worf.filename)
+        ppmean_wrf.append( np.nan_to_num( Docpy.precip.ppmean_box(worf, acum, box, offset=0) ) )
+        time_wrf.append( worf.acum_time(acum) )
 
     # Common times between OBS and WRF
-    time_common = Docpy.functions.common_times(time_obs + [time_wrf])
+    time_common = Docpy.functions.common_times(time_obs + time_wrf)
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ### Plot
 
     fig, ax = plt.subplots(figsize=(15,7))
     #WRF
-    sliwrf = slice(time_wrf.index(time_common[0]), time_wrf.index(time_common[-1]))
-    ax.plot(time_wrf[sliwrf], ppmean_wrf[sliwrf],
+    # Ensemble
+    sliwrf_ens = slice(time_wrf[0].index(time_common[0]), time_wrf[0].index(time_common[-1]))
+    ax.plot(time_wrf[0][sliwrf_ens], ppmean_wrf[0][sliwrf_ens],
             color = 'r',
             linestyle='solid',
             linewidth=1,
             label=wrf.name)
-    
+    # Members
+    for w, worf in enumerate(wrfs[1:]):
+        sliwrf = slice(time_wrf[w+1].index(time_common[0]), time_wrf[w+1].index(time_common[-1]))
+        ax.plot(time_wrf[w+1][sliwrf], ppmean_wrf[w+1][sliwrf],
+                color='r',
+                linestyle='dashed',
+                linewidth=1,
+                )
+
+
     #OBS
     # Correlation coeficient
     rs = []
     for o, obs in enumerate(observaciones):
         sliobs = slice(time_obs[o].index(time_common[0]), time_obs[o].index(time_common[-1]))
         
-        rs.append(np.corrcoef(x=ppmean_wrf[sliwrf], y=ppmean_obs[o][sliobs])[0,1])
+        rs.append(np.corrcoef(x=ppmean_wrf[0][sliwrf_ens], y=ppmean_obs[o][sliobs])[0,1])
     
         ax.plot(time_obs[o][sliobs], ppmean_obs[o][sliobs],
                 color='k',
