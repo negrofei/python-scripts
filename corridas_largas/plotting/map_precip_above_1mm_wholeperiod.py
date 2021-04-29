@@ -55,10 +55,11 @@ paleta.set_over('magenta')
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ### Calculos
 
-precip = Docpy.precip.calc_precip_acum(wrf, acum=acum)      # mm/day
-precip_1mm = np.where(precip>1, np.ones_like(precip), 0)    # matriz booleana donde se supera 1mm
-frec_precip1mm = np.sum(precip_1mm, axis=0)/precip.shape[0] # frecuencia relativa donde se supera
-                                                            # la condicion
+precip = Docpy.precip.calc_precip_acum(wrf, acum=acum)[:-1]     # mm/day (tiro el ultimo dia que
+                                                                # son 0s)
+precip_1mm = np.where(precip>1, np.ones_like(precip), 0)        # matriz booleana donde se supera 1mm
+frec_precip1mm = np.sum(precip_1mm, axis=0)/precip.shape[0]     # frecuencia relativa donde se supera
+                                                                # la condicion
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Niveles
 levels = np.linspace(0,0.7, 11)
