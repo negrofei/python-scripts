@@ -84,7 +84,11 @@ gl.ylabel_style = {'size': 14, 'rotation': 25}
 
 # meto el cbar a mano
 fig.subplots_adjust(right=0.8)
-cbar_ax = fig.add_axes([0.85, 0.15, 0.02, 0.7])
+cbar_xmin = axes.get_position().xmax+0.05
+cbar_ymin = axes.get_position().ymin
+cbar_width = 0.025
+cbar_hight = axes.get_position().ymax-axes.get_position().ymin
+cbar_ax = fig.add_axes([cbar_xmin, cbar_ymin, cbar_width, cbar_hight])
 cbar = fig.colorbar(mapa, cax=cbar_ax, ticks=levels)
 cbar.set_label('mm/day')
 
