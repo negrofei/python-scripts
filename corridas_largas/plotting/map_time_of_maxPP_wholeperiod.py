@@ -1,5 +1,7 @@
 """
-Mapa de la precipitación media de los 3 meses de simulación en toda la región.
+Mapa de la hora de máxima precipitación en todo el periodo.
+Se calcula el ciclo medio diurno para cada punto de reticula
+se extrae el tiempo de máxima precipitación. 
 
 for execution:
     $ python3 map_time_of_maxPP_wholeperiod.py
