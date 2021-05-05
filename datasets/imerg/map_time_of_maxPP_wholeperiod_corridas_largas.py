@@ -56,20 +56,24 @@ precip = Docpy.precip.calc_precip_acum(data, acum=acum)[:90*int(24/acum)]
 #   * Luego tengo que extraer la hora de la máxima precipitación de ese ciclo diurno promedio. 
 
 
-# Ciclo diurno
-mean_cicle = np.zeros( (int(24/acum),)+precip.shape[1:] )
+# Ciclo diurno de preicpitación mayor a un umbral en mm/3hs
+mean_cicle = np.ma.zeros( (int(24/acum),)+precip.shape[1:] )
+
+threshold = 20
+
+precip_threshold = np.ma.masked_less(precip, threshold)
 
 for t in range(mean_cicle.shape[0]):
-    mean_cicle[t] = np.mean( precip[t::mean_cicle.shape[0]], axis=0)
+    mean_cicle[t] = np.ma.mean( precip_threshold[t::mean_cicle.shape[0]], axis=0)
 
 # Calculo el maximo del ciclo diurno
-max_mean_cicle = np.max(mean_cicle, axis=0)
+max_mean_cicle = np.ma.max(mean_cicle, axis=0)
 
 # Agarro el tiempo en el que se cumple que llega al maximo
-time_max_pp = np.zeros_like(max_mean_cicle)
+time_max_pp = np.ma.masked_equal(np.ones_like(max_mean_cicle),1)
 
 for t in range(1,mean_cicle.shape[0]):
-    time_max_pp = np.where( mean_cicle[t]==max_mean_cicle, acum*t, time_max_pp)
+    time_max_pp = np.ma.where( mean_cicle[t]==max_mean_cicle, acum*t, time_max_pp)
 
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -87,20 +91,26 @@ bordes = cfeature.NaturalEarthFeature(
         edgecolor='k',
         facecolor='none',
         )
-paleta = plt.get_cmap('twilight_shifted')
 
 # Niveles
-levels = [0,3,6,9,12,15,18,21]
+levels = [0,3,6,9,12,15,18,21,24]
+paleta = plt.get_cmap('twilight_shifted', len(levels)+1)
+colores = [paleta(i) for i in range(paleta.N)]
+colores[-1] = colores[-3]+np.diff(colores,axis=0)[-3]
+new_paleta = colors.LinearSegmentedColormap.from_list('new_colormap', colores, paleta.N)
+norm = colors.BoundaryNorm(levels, paleta.N)
+
 
 ### Plot
 fig = plt.figure( figsize=(10,10) )
 axes = plt.axes(projection=ccrs.PlateCarree())
-mapa = axes.contourf(
+mapa = axes.pcolormesh(
         lon, lat, time_max_pp,
         transform=ccrs.PlateCarree(),
-        cmap=paleta,
-        extend='both',
-        levels=levels,
+        cmap=new_paleta,
+        #extend='both',
+        #levels=levels,
+        norm=norm,
         )
 axes.set_extent(box)
 axes.add_feature(bordes)
@@ -123,16 +133,28 @@ cbar_width = 0.025
 cbar_hight = axes.get_position().ymax-axes.get_position().ymin
 cbar_ax = fig.add_axes([cbar_xmin, cbar_ymin, cbar_width, cbar_hight])
 cbar = fig.colorbar(mapa, cax=cbar_ax, ticks=levels)
+cbar.set_ticks(np.array(levels)+1.5)
+cbar.ax.yaxis.set_ticklabels([str(level) for level in levels])
 cbar.set_label('UTC')
 
 # Mas configs
-axes.set_title(' '.join(['Time of max PP', os.path.split(data.ruta)[-1],'acum{:02d}'.format(acum)]))
+axes.set_title(
+        ' '.join(
+            [
+                'Time of max PP',
+                'above {} mm/3h'.format(threshold),
+                os.path.split(data.ruta)[-1],
+                'acum{:02d}'.format(acum),
+                ]
+            )
+        )
 
 #plt.show()
 sape = '_'.join(
         [
             'map_time_of_maxPP_OND',
             'acum{:02}'.format(acum),
+            'above_{}mm3h'.format(threshold),
             data.name,
             ]
         )
