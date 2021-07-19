@@ -79,7 +79,7 @@ mapa = axes.contourf(
         )
 axes.set_extent(box)
 axes.add_feature(bordes)
-axes.coastlines('50m', color='gray')
+axes.coastlines('50m', color='k')
 
 # Gridlines
 gl = axes.gridlines(draw_labels=True, color='k', alpha=0.2, linestyle='--')
@@ -99,6 +99,17 @@ cbar_hight = axes.get_position().ymax-axes.get_position().ymin
 cbar_ax = fig.add_axes([cbar_xmin, cbar_ymin, cbar_width, cbar_hight])
 cbar = fig.colorbar(mapa, cax=cbar_ax, ticks=levels)
 cbar.set_label('mm/day')
+
+# Mas configs
+axes.set_title(
+        ' '.join(
+            [
+                'mean precip OND',
+                wrfs[0].ruta.split('/')[-1],
+                ]
+            )
+        )
+                
 
 #plt.show()
 sape = '_'.join(
