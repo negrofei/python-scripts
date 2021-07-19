@@ -34,7 +34,7 @@ except:
 
 while True:
     #opt = input('BOX4 o BOX4B o HR3?? ([1]/2/3) \t')
-    opt = '3'
+    opt = '2'
     if (opt.lower() == '1') or (opt == ''):
         box = Docpy.functions.utils['box']
         box_name = 'box4_chica'
@@ -93,9 +93,9 @@ while True:
 #        print('Escribí bien, pelotudo')
 
 #a=b=c=d='v'
-#a=b=c=d='n'
+a=b=c=d='n'
 #e = 'v'
-a = 'v'
+e = 'v'
 ########################################%% PLOT PRECIP %%############################################
 if a=='v':
     paleta = plt.get_cmap('gist_ncar')
