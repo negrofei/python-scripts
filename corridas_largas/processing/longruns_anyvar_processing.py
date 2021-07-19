@@ -27,26 +27,26 @@ import cdo
 import glob
 import concurrent.futures
 import itertools
-
+from pathlib import Path
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 ### Defino la función que procesa un archivo
 
 def process_wrfouts( wrfouts_path, var, levels=[1000.,950.,900.,850.,800.,750.,700.,650.,600.,550.,500.,450.,400.,350.,300.,250.,200.,150.,100.]):
-    print('PROCESS:', os.getpid())
+    #print('PROCESS:', os.getpid())
     
-    chunk = os.path.split(wrfouts_path[0])[0]
-    print('Chunk:',chunk)
-    print('Leo los datasets')
+    chunk = Path(wrfouts_path[0]).parent
+    print('Chunk:',chunk.name, var)
+    #print('Leo los datasets')
     wrflist = [Dataset(wrfout) for wrfout in wrfouts_path]
     wrfori = wrflist[0]     # agarro un wrf para sacar metadata
     wrffin = wrflist[-1]
-    print('Obtengo tiempos')
+    #print('Obtengo tiempos')
     tiempos =  wrf.getvar(wrflist, 'XTIME', timeidx=wrf.ALL_TIMES, method='cat') 
     time_list = [str(num2date(tiempos[i], units=tiempos.units)) for i in range(len(tiempos[:]))]
     delta_t_hs = num2date(tiempos[1]-tiempos[0], units=tiempos.units).hour
     every = '03'
-    print('Outout every ',every,'hours')
+    #print('Outout every ',every,'hours')
     inter = int(int(every)/delta_t_hs)
     
     ### Extraigo partes del código de script de extract_precip. 
@@ -63,14 +63,14 @@ def process_wrfouts( wrfouts_path, var, levels=[1000.,950.,900.,850.,800.,750.,7
     new_wrf_name_beginning = filename_generator(var, levels)
 
     new_wrf_name = '_'.join([new_wrf_name_beginning,'every', every, wrf_chunk_name])
-    print('Nombre del archivo:',new_wrf_name)
+    #print('Nombre del archivo:',new_wrf_name)
 
     dataset = Dataset( 
-            os.path.join(chunk, new_wrf_name),
+            chunk.joinpath(new_wrf_name),
             'w',
             format=wrfori.file_format
             )
-    print('Creating lonlats...')
+    #print('Creating lonlats...')
     lats = wrf.getvar(wrfori, 'lat')
     lons = wrf.getvar(wrfori, 'lon')
 
@@ -86,7 +86,7 @@ def process_wrfouts( wrfouts_path, var, levels=[1000.,950.,900.,850.,800.,750.,7
     z = len(levels)
     y, x = p.shape[1:]
 
-    print('Creating time dimensions...')
+    #print('Creating time dimensions...')
     # Creo las variables con las dimensiones 
     # Tiempos
     times = dataset.createVariable('time', np.float64, ('time',))
@@ -114,11 +114,11 @@ def process_wrfouts( wrfouts_path, var, levels=[1000.,950.,900.,850.,800.,750.,7
     longitude.units = 'degree_east'
 
     # Información del archivo
-    print('Creating file info...')
+    #print('Creating file info...')
     dataset.description = ' '.join(
             [
                 'Geopotencial extraido desde',
-                os.path.abspath(chunk),
+                str(chunk),
                 'a partir del script:',
                 os.path.abspath(sys.argv[0]),
                 ],
@@ -165,7 +165,7 @@ def process_wrfouts( wrfouts_path, var, levels=[1000.,950.,900.,850.,800.,750.,7
 
     dataset.close()
     print('Archivo',new_wrf_name,'creado!')
-    return None
+    return new_wrf_name
 
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -222,17 +222,18 @@ def filename_generator(variable, levels=None):
 ### Funcion para ensamblar los archivos con CDO
 
 def concatenate( list_of_files, dirout, nameout ):
+    list_of_files = [str(a) for a in list_of_files]
     c = cdo.Cdo()
-    c.cat(input=list_of_files, output=os.path.join(dirout,nameout) )
-    return None
+    c.cat(input=list_of_files, output=os.path.join(dirout, nameout))
+    print(nameout)
+    return nameout 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 ### Funcion para dar los wrfouts_paths segun el chunk
 
 def wrfpaths(chunk, corrida_larga_name):
 
-    wrfouts_path = [os.path.join(corrida_larga_name, chunk,file) for file in os.listdir(os.path.join(corrida_larga_name, chunk)) if file.startswith('wrfout')]
-    wrfouts_path.sort()
+    wrfouts_path = sorted([corrida_larga_name.joinpath(chunk, file) for file in corrida_larga_name.joinpath(chunk).iterdir() if file.name.startswith('wrfout')])
     return wrfouts_path
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -242,7 +243,7 @@ if __name__ == '__main__':
     tini = time.perf_counter()
     ### Directorios
 
-    corrida_larga_name = sys.argv[1]                        # Carpeta donde se encuentran los files
+    corrida_larga_name = Path(sys.argv[1]).resolve()                        # Carpeta donde se encuentran los files
     #variable = input('Choose the variable to extract:\t')   # Variable para procesar
 
     # Voy a automatizar el proceso de seleccion de variables con la siguiente lista
@@ -263,7 +264,7 @@ if __name__ == '__main__':
     #   *   QVAPOR      |   Water vapor mixing ratio
     #   *   OLR         |   TOA OUTGOING LONGWAVE
 
-    variables = ['avo','eth']#,'mdbz', 'geopt','omg','pressure','rh','tc','td','ua','va','wa','QVAPOR','OLR']
+    variables = ['T2','avo','eth']#,'mdbz', 'geopt','omg','pressure','rh','tc','td','ua','va','wa','QVAPOR','OLR']
 
     ### Voy a crear hacer threading de forma de que haga cada variable y cada chunk en un proceso 
     #   aparte y que no espere que termine para lanzar el otro proceso
@@ -271,15 +272,14 @@ if __name__ == '__main__':
     # Tengo que iterar entre los chunks y entre las variables. 
    
     # Agarro los chunks
-    chunks = glob.glob(os.path.join(os.path.abspath(corrida_larga_name),'20*'))
-    chunks.sort()
+    chunks = sorted(corrida_larga_name.glob('20*'))
     
     # Obtengo la lista de parametros para pasarle al threading
     parametros = list(itertools.product(chunks, variables))
     
     # Como tengo que mapear process_wrfouts, armo una funcion auxiliar para parsear los parametros
-    def parser_wrfprocess(parametros):
-        return process_wrfouts( wrfpaths(parametros[0], corrida_larga_name), parametros[1] )
+    def parser_wrfprocess(args):
+        return process_wrfouts( wrfpaths(args[0], corrida_larga_name), args[1] )
     
     ### Una vez termina de armar el <variable>_every*_<chunk>.nc lo ensamblo en un solo archivo
     #   Como puse los threads, lo que va a pasar es que hasta que no se termine de ejecutar
@@ -287,45 +287,52 @@ if __name__ == '__main__':
     #   Lo más óptimo sería que la siguiente parte se ejecute al mismo tiempo y que chequee que 
     #   estén todos los archivos. Armo una funcion que haga eso. 
 
-    def parser_ensemble(variable):
+    def cdo_ensemble(variable, chunks):
         # Chequeo que esten todos los chunks terminados
         list_of_files = []
         while True:
             for chunk in chunks:
-                file = glob.glob(os.path.join(corrida_larga_name,chunk, variable+'*'))
-                list_of_files = list_of_files + file
+                file = next(corrida_larga_name.joinpath(chunk).glob(variable+'*'))
+                list_of_files = list_of_files + [file]
 
             if len(list_of_files) == len(chunks):
                 printer('Starting to ensemble', variable)
                 break
             else:
                 print('Waiting for', variable,'\t','...','{}/{} files done'.format(len(list_fo_files),len(chunks)))
+                time.sleep(2)
 
         # Me quedo con la raiz del nombre de los archivos, ya que contiene la info de cuántos niveles
         # hay
         printer('ENMSABLE OF',variable)
 
-        root = os.path.split(file[0])[-1].split('_wrfout')[0]
+        root = list_of_files[0].name.split('_wrfout')[0]
 
-        dirout = os.path.abspath(corrida_larga_name)
+        dirout = str(corrida_larga_name.resolve())
         nameout = '_'.join(
                 [
                     root,
                     'alltimes',
                     'wrfout',
-                    corrida_larga_name+'.nc'
+                    corrida_larga_name.name+'.nc'
                     ]
                 )
         
         concatenate(list_of_files, dirout, nameout)
+        return nameout
     
-    
+    def parser_ensemble(args):
+        return cdo_ensemble(args, chunks)
+
+
     # Arranco el threading
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(20) as executor:
         results_wrfprocess = executor.map(parser_wrfprocess, parametros)
-        results_ensamble = executor.map(parser_ensemble, variables)
     
+    results_ensamble = map(parser_ensemble, variables)
+
     # Performance    
     tfin = time.perf_counter()
 
     printer('Tardo','{:.1f}'.format(tfin-tini))
+
