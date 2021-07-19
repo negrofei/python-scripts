@@ -61,14 +61,14 @@ size_colors = {'1A12':'tab:blue',
                '2B20':'chocolate',
                '2B'  :'goldenrod',
                '3':'tab:red'}
-size_colors_names = dict(zip([*size_colors], ['1-n12','2-n12','2-n20','2-noNest','3-noNest']))
+size_colors_names = dict(zip([*size_colors], ['1(12)','2(12)','2(20)','2','3']))
 
 caso = ruta.split('/')[['caso2' in x for x in ruta.split('/')].index(True)]
 datos = ['cmorph','mswep','imerg']
 casito = caso[4:]
 
 def load_wrfs(simus):
-    size_colors_names = dict(zip([*size_colors], ['1-n12','2-n12','2-n20','2-noNest','3-noNest']))
+    size_colors_names = dict(zip([*size_colors], ['1(12)','2(12)','2(20)','2','3']))
     wrfs = {}
     for sim in simus:
         for dom in simus_d0s[sim]:
@@ -95,14 +95,17 @@ def load_wrfs(simus):
                     wrf.linestyle = res_linestyle[str(int(r/1000))+'km']
 
                 if r  > 4000:
-                    wrf.size = 'LR'
+                    wrf.size = 'DR'
                 else:
-                    wrf.size = 'HR'
+                    wrf.size = 'CP'
                 wrf.sim = sim
                 if r == 2400:
-                    wrf.label = str(r/1000)+'km'+'_'+wrf.size+size_colors_names[domains[sim]]
-                else:
-                    wrf.label = str(int(r/1000))+'km'+'_'+wrf.size+size_colors_names[domains[sim]]
+                    wrf.label = wrf.size+size_colors_names[domains[sim]][0]+'-'+str(r/1000)+size_colors_names[domains[sim]][1:]
+                else: 
+                    wrf.label = wrf.size+size_colors_names[domains[sim]][0]+'-'+str(int(r/1000))+size_colors_names[domains[sim]][1:]
+                if wrf.size == 'DR':
+                    wrf.label = wrf.label[:-4]
+
                 wrfs[sim,dom] = wrf
     return wrfs
 
@@ -129,7 +132,7 @@ while True:
 
 plt.rcParams.update({'font.size':14})
 #############################%% Z850 (cont) + UV (vector) + V (shaded) ##############################
-if False:
+if True:
     for sim in simus:
         d = simus_d0s[sim][-1]
         print(sim)
@@ -163,7 +166,7 @@ if False:
             intervalo = 2
         else:
             intervalo = 1
-        era = Docpy.ERAI('/home/martin.feijoo/ERA-Interim/casos_mios/UV_ERAI_200503.nc')
+        era = Docpy.ERAI('/home/martin.feijoo/ERA-Interim/casos_mios/ERAI_pl200503_129-131-132-133.nc')
         latera, lonera = era.get_latlon()
         imin, imax, jmin, jmax = Docpy.functions.latlon_idx(latera, lonera, box)
         lista_lat = np.array([np.where(np.abs(lat-j)==np.min(np.abs(lat-j)))[0][0] for j in latera[jmin:jmax+1]])
@@ -190,13 +193,13 @@ if False:
                                     cmap=vpaleta,
                                     extend='both',
                                     levels=vlevels)
-                n = 200
+                n = 300
                 flechas = axes.quiver(lon[lista_lon[::intervalo]], lat[lista_lat[::intervalo]], 
                         Vq[0][:,lista_lat[::intervalo],:][:,:,lista_lon[::intervalo]][t]/n,
                         Vq[1][:,lista_lat[::intervalo],:][:,:,lista_lon[::intervalo]][t]/n,
                                       transform=ccrs.PlateCarree(),
-                                      scale=5, scale_units='inches')
-                axes.quiverkey(flechas,.875,1.025, 1, '{}'.format(n)+r'$\frac{kg}{m s}$', labelpos='E', coordinates='axes', fontproperties={'size':15}, color='k', labelcolor='k')
+                                      scale=3, scale_units='inches')
+                axes.quiverkey(flechas,.875,1.03, 1, '{}'.format(n)+r'$\frac{kg}{m s}$', labelpos='E', coordinates='axes', fontproperties={'size':20}, color='k', labelcolor='k')
 
                 contorno = axes.contour(lon, lat, z850[t],
                                         transform=ccrs.PlateCarree(),
@@ -204,14 +207,16 @@ if False:
                                         levels=zlevels,
                                         )
                 axes.clabel(contorno, inline=True, fmt='%0d')
-
-                contorno2 = axes.contour(lon, lat, precip[t+lag,:,:],
-                                        transform=ccrs.PlateCarree(),
-                                        colors='purple',
-                                        levels=levels_pp,
-                                        alpha=0.8,
-                                        )
-                axes.clabel(contorno2, inline=True, fmt='%0d')
+                try:
+                    contorno2 = axes.contour(lon, lat, precip[t+lag,:,:],
+                                            transform=ccrs.PlateCarree(),
+                                            colors='purple',
+                                            levels=levels_pp,
+                                            alpha=0.8,
+                                            )
+                    axes.clabel(contorno2, inline=True, fmt='%0d')
+                except:
+                    print('algo paso, no se, no tengo ganas de chequear')
                 bordes = cfeature.NaturalEarthFeature(          # limites de los paises
                         category='cultural',
                         name='admin_0_boundary_lines_land',
@@ -221,31 +226,47 @@ if False:
                         )
                 axes.add_feature( bordes )
                 axes.coastlines('50m', color='gray')
-                #for rec in provincias.records():
-                #    axes.add_geometries( [rec.geometry], ccrs.PlateCarree(), edgecolor="k", facecolor='none', linewidth=0.5)
                 gl = axes.gridlines(draw_labels=True, color='k', alpha=0.2, linestyle='--')
                 gl.xlabels_top = False
                 gl.ylabels_right = False
                 gl.xformatter = LONGITUDE_FORMATTER
                 gl.yformatter = LATITUDE_FORMATTER
-                gl.xlabel_style = {'size': 14, 'rotation': 25}
-                gl.ylabel_style = {'size': 14, 'rotation': 25}
+                gl.xlabel_style = {'size': 20, 'rotation': 25}
+                gl.ylabel_style = {'size': 20, 'rotation': 25}
                 
-                axes.set_title(times[::int(every/delta_t_hs)][t], fontsize=14)
+                axes.set_title(wrf.label, fontsize=30)
                 
                 # meto el cbar a mano
-                fig.subplots_adjust(right=0.8)
-                cbar_ax = fig.add_axes([0.85, 0.15, 0.02, 0.7])
-                cbar = fig.colorbar(mapa, cax=cbar_ax, ticks=vlevels)#, format=OOMFormatter(-3))
-                cbar.set_label(r'm s$^{-1}$')
+                #fig.subplots_adjust(right=0.8)
+                #cbar_ax = fig.add_axes([0.85, 0.15, 0.02, 0.7])
+                #cbar = fig.colorbar(mapa, cax=cbar_ax, ticks=vlevels)#, format=OOMFormatter(-3))
+                #cbar.set_label(r'm s$^{-1}$')
                 
                 #plt.show()
-                sape = '_'.join(['Vq_cfhi',opt, box_name, wrf.dominio, caso, sim, times[::int(every/delta_t_hs)][t]])
-                fig.savefig(os.path.join(ruta_figs,sape+'.png'), dpi=300, bbox_inches='tight')
+                fmts = ['.png','.pdf']
+                for fmt in fmts:
+                    sape = '_'.join(['Vq_cfhi',opt, box_name, wrf.dominio, caso, sim, times[::int(every/delta_t_hs)][t]])
+                    fig.savefig(os.path.join(ruta_figs,sape+fmt), dpi=300, bbox_inches='tight')
                 plt.close()
 
+            ### GUARDO EL CBAR APARTE ###
+            fig, ax = plt.subplots(figsize=(10,10))
+            mapa = axes.contourf(lon, lat, V[t],
+                    transform=ccrs.PlateCarree(),
+                    cmap=vpaleta,
+                    extend='both',
+                    levels=vlevels)
+            from Docpy.plot.mapping import map_cbar
+            cbar = fig.colorbar(mapa, cax=map_cbar(fig, ax, width=0.03), ticks=vlevels)#, format=OMMFormatter(-3))
+            cbar.set_label(r'm s$^{-1}$')
+            ax.remove()
+            for fmt in fmts:
+                sape = '_'.join(['Vq_cfhi',opt, box_name, wrf.dominio, caso, sim, 'cbar'])
+                fig.savefig(os.path.join(ruta_figs,sape+fmt), dpi=300, bbox_inches='tight')
+
+
 #### z850 y vientos en vectores ####
-if True:
+if False:
     for sim in simus[1:]:
         d = 'd01'
         print(sim)
