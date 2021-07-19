@@ -10,6 +10,7 @@ import sys
 import numpy as np
 import Docpy
 from Docpy import WRF, Dato
+from Docpy.plot.mapping import map_cbar
 import time
 import re
 ##
@@ -37,8 +38,8 @@ except:
 # props
 caso = re.search(r'(caso\d{4}[-]\d{2})',ruta).group()
 casito = caso[4:]
-plt.rcParams.update({'font.size': 14})
-acum_list = [3, 6, 24]                      # grafico para acumular cada 3 6 y 24
+plt.rcParams.update({'font.size': 20})
+acum_list = [3]#, 6, 24]                      # grafico para acumular cada 3 6 y 24
 
 simus = [
         '2.4km_anidado12',
@@ -66,7 +67,7 @@ size_colors = {'1A12':'tab:blue',
         '2B20':'chocolate',
         '2B'  :'goldenrod',
         '3':'tab:red'}
-size_colors_names = dict(zip([*size_colors], ['1-n12','2-n12','2-n20','2-noNest','3-noNest']))
+size_colors_names = dict(zip([*size_colors], ['1(12)','2(12)','2(20)','2','3']))
 
 
 wrfs = {}                                   # cargo todas las simulaciones
@@ -94,14 +95,16 @@ for sim in simus:
                 wrf.color = size_colors[domains[sim]]
                 r = res[int(dom[-1])-1]
                 if r  > 4000:
-                    wrf.size = 'LR'
+                    wrf.size = 'DR'
                 else:
-                    wrf.size = 'HR'
+                    wrf.size = 'CP'
                 wrf.sim = sim
                 if r == 2400:
-                    wrf.label = str(r/1000)+'km'+'_'+wrf.size+size_colors_names[domains[sim]]
+                    wrf.label = wrf.size+size_colors_names[domains[sim]][0]+'-'+str(r/1000)+size_colors_names[domains[sim]][1:]
                 else:
-                    wrf.label = str(int(r/1000))+'km'+'_'+wrf.size+size_colors_names[domains[sim]]
+                    wrf.label = wrf.size+size_colors_names[domains[sim]][0]+'-'+str(int(r/1000))+size_colors_names[domains[sim]][1:]
+                if wrf.size == 'DR':
+                    wrf.label = wrf.label[:-4]
                 wrfs[config,sim,dom] = wrf
 
 box = Docpy.functions.common_doms([os.path.join(wrfs[wrf].ruta,wrfs[wrf].filename) for wrf in [*wrfs]])
@@ -155,18 +158,32 @@ for acum in acum_list:
                 gl.ylabels_right = False
                 gl.xformatter = LONGITUDE_FORMATTER
                 gl.yformatter = LATITUDE_FORMATTER
-                gl.xlabel_style = {'size': 14, 'rotation': 25}
-                gl.ylabel_style = {'size': 14, 'rotation': 25}
-                axes.set_title(times[t], fontsize=14)
+                gl.xlabel_style = {'size': 20, 'rotation': 25}
+                gl.ylabel_style = {'size': 20, 'rotation': 25}
+                
+                axes.set_title(wrf.label, fontsize=30)
                 
                 # meto el cbar a mano
-                fig.subplots_adjust(right=0.8)
-                cbar_ax = fig.add_axes([0.85, 0.15, 0.02, 0.7])
-                cbar = fig.colorbar(mapa, cax=cbar_ax, ticks=levels)
-                cbar.set_label('mm')
+                #fig.subplots_adjust(right=0.8)
+                #cbar_ax = fig.add_axes([0.85, 0.15, 0.02, 0.7])
+                #cbar = fig.colorbar(mapa, cax=map_cbar(fig, axes, width=0.03), ticks=levels)
+                #cbar.set_label('mm')
 
                 # guardo la figura en un directorio adentro del directorio ruta_figs con el nombre de la simulacion
-                sape = '_'.join(['ensemble','acum{:02}'.format(acum), wrf.dominio, caso, sim, times[t]])
-                fig.savefig(os.path.join(ruta_figs_sims,sape+'.png'), dpi=300, bbox_inches='tight')
+                fmts = ['.png','.pdf']
+                for fmt in fmts:
+                    sape = '_'.join(['ensemble','acum{:02}'.format(acum), wrf.dominio, caso, sim, times[t]])
+                    fig.savefig(os.path.join(ruta_figs_sims,sape+fmt), dpi=300, bbox_inches='tight')
                 plt.close()
+
+
+            ### GUARDO EL CBAR APARTE ###
+            fig, ax = plt.subplots(figsize=(10,10))
+            mapa = ax.contourf(lon, lat, mean_precip[t,...], cmap=paleta, extend='both', levels=levels)
+            cbar = fig.colorbar(mapa, cax=map_cbar(fig, ax, width=0.03), ticks=levels)
+            cbar.set_label('mm')
+            ax.remove()
+            for fmt in fmts:
+                sape = '_'.join(['ensemble_cbar','acum{:02}'.format(acum), wrf.dominio, caso, sim])
+                fig.savefig(os.path.join(ruta_figs_sims,sape+fmt), dpi=300, bbox_inches='tight')
 
