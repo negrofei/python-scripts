@@ -7,12 +7,12 @@ Es decir, para cada configuracion de dominio ('sim') calculo la envolvente de la
 
 import os
 import sys
-
+import datetime
 import Docpy
 from Docpy import Dato
 from Docpy import WRF
 import matplotlib.pyplot as plt
-
+import matplotlib.dates as mdates
 import numpy as np
 ###### cosas a mano
 
@@ -61,11 +61,16 @@ size_colors = {'1A12':'tab:blue',
                '2B20':'chocolate',
                '2B'  :'goldenrod',
                '3':'tab:red'}
-size_colors_names = dict(zip([*size_colors], ['1-n12','2-n12','2-n20','2-noNest','3-noNest']))
+size_colors_names = dict(zip([*size_colors], ['1(12)','2(12)','2(20)','2','3']))
 
 caso = ruta.split('/')[['caso2' in x for x in ruta.split('/')].index(True)]
 datos = ['cmorph','mswep','imerg']
 casito = caso[4:]
+name_casito = {
+        '2005-03':'Case1 2005-03 ',
+        '2015-11':'Case2 2015-11',
+        '2016-10':'Case3 2016-10',
+        }
 
 
 ####
@@ -99,15 +104,17 @@ for sim in simus:
                     wrf.linestyle = res_linestyle[str(int(r/1000))+'km']
 
                 if r  > 4000:
-                    wrf.size = 'LR'
+                    wrf.size = 'DR'
                 else:
-                    wrf.size = 'HR'
+                    wrf.size = 'CP'
                 wrf.sim = sim
                 if r == 2400:
-                    wrf.label = str(r/1000)+'km'+'_'+wrf.size+size_colors_names[domains[sim]]
+                    wrf.label = wrf.size+size_colors_names[domains[sim]][0]+'-'+str(r/1000)+size_colors_names[domains[sim]][1:]
                 else:
-                    wrf.label = str(int(r/1000))+'km'+'_'+wrf.size+size_colors_names[domains[sim]]
-                wrfs[config,sim,dom] = wrf
+                    wrf.label = wrf.size+size_colors_names[domains[sim]][0]+'-'+str(int(r/1000))+size_colors_names[domains[sim]][1:]
+                if wrf.size == 'DR':
+                    wrf.label = wrf.label[:-4]
+                wrfs[config, sim, dom] = wrf
 #sys.exit()
 #### chequeo que esto haya andado
 #for wrf in [*wrfs]:
@@ -145,6 +152,15 @@ for wrf in [*wrfs]:
 
 # me agarro los tiempos comunes
 time_common = Docpy.functions.common_times(time_obs+time_wrf)
+
+# armo datetimes
+
+time_obs_dt = [[datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S') for time in time_obss] for time_obss in time_obs]
+
+time_wrf_dt = [[datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S') for time in time_wrfss] for time_wrfss in time_wrf]
+
+time_common_dt = [datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S') for time in time_common]
+
 
 def minimo_de_varios(lista):
     assert len(lista)>=1
@@ -410,15 +426,15 @@ for fig_type in ['3WaySplit']:
         fig, axes = plt.subplots(nrows=3, figsize=(10,10), sharex=True)
         for ax in axes.ravel():
             for o, obs in enumerate(observaciones):
-                sli = slice(time_obs[o].index(time_common[2]), time_obs[o].index(time_common[-1]))
-                ax.plot(time_obs[o][sli], ppmean_obs[o][sli],
+                sli = slice(time_obs_dt[o].index(time_common_dt[2]), time_obs[o].index(time_common[-1]))
+                ax.plot(time_obs_dt[o][sli], ppmean_obs[o][sli],
                         color='black',
                         linestyle=linestyles[o],
                         linewidth=2,
                         label=obs.name)
         for c in range(round(len([*wrfs])/len(configs))):
             estas_sims = [*wrfs][len(configs)*c:len(configs)*(c+1)]
-            if wrfs[estas_sims[0]].size == 'HR':
+            if wrfs[estas_sims[0]].size == 'CP':
                 sim_name = estas_sims[0][1]
                 lower = minimo_de_varios( [ppmean_wrf[j] for j in estas_sims ] )
                 upper = maximo_de_varios( [ppmean_wrf[j] for j in estas_sims ] )
@@ -427,20 +443,20 @@ for fig_type in ['3WaySplit']:
                     all_array[s,:] = ppmean_wrf[sim]
                 media = np.mean(all_array, axis=0)
 
-                if wrfs[estas_sims[0]].label.split('_')[1].startswith('HR1'):
+                if wrfs[estas_sims[0]].label.startswith('CP1'):
                     ax = axes.ravel()[0]
-                elif wrfs[estas_sims[0]].label.endswith('noNest'):
+                elif not wrfs[estas_sims[0]].label.endswith(')'):
                     ax = axes.ravel()[2]
                 else:
                     ax = axes.ravel()[1]
             
-                ax.fill_between(time_wrf[0][2:], lower[2:], upper[2:],
+                ax.fill_between(time_wrf_dt[0][2:], lower[2:], upper[2:],
                         color=wrfs[estas_sims[0]].color,
                         linestyle=wrfs[estas_sims[0]].linestyle,
                         linewidth=2,
                         alpha=0.4,
                         )
-                ax.plot(time_wrf[0][2:], media[2:],
+                ax.plot(time_wrf_dt[0][2:], media[2:],
                         color=wrfs[estas_sims[0]].color,
                         linestyle=wrfs[estas_sims[0]].linestyle,
                         linewidth=2,
@@ -453,15 +469,64 @@ for fig_type in ['3WaySplit']:
                 ax.set_yticklabels(
                         ['{}'.format(tick) for tick in ax.get_yticks()])
                 ax.set_ylabel('mm')
-                ax.set_xticklabels([time[:-6] for time in time_common[2:]], fontsize=14)
-                for tick in ax.get_xticklabels():
-                    tick.set_rotation(90)
-                # HAGO LA LEGEND APARTE
+                ax.set_xlim(time_common_dt[2]-datetime.timedelta(hours=6), time_common_dt[-1]+datetime.timedelta(hours=0))
+                ax.xaxis.set_major_locator(mdates.DayLocator())
+                ax.xaxis.set_minor_locator(mdates.HourLocator((3,6,9,12,15,18,21)))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%b/%d'))
+                ax.xaxis.set_minor_formatter(mdates.DateFormatter('%H'))
+                ax.xaxis.set_tick_params(which='major', pad=16) 
                 ax.grid()
-                ax.set_title(casito, fontsize=14) if subplot == 0 else None
+                ax.grid(which='minor', alpha=0.4)
+                ax.set_title(name_casito[casito], fontsize=20) if subplot == 0 else None
+        fig.subplots_adjust(hspace=0.1)
         #%% SAVE FIG
-        for fmt in ['.jpg']:
+        for fmt in ['.png', '.pdf']:
             fig.savefig(os.path.join(ruta_figs,
                 '_'.join([fail,caso,'acum{:02d}'.format(acum),fig_type]))+fmt, dpi=150, bbox_inches='tight')
         #plt.show()
+        
+
+
+        ### GUARDO LAS LEGENDS APARTE ###
+        fig, axes = plt.subplots(figsize=(10,10))
+        for o, obs in enumerate(observaciones):
+            sli = slice(time_obs_dt[o].index(time_common_dt[2]), time_obs[o].index(time_common[-1]))
+            ax.plot(time_obs_dt[o][sli], ppmean_obs[o][sli],
+                    color='black',
+                    linestyle=linestyles[o],
+                    linewidth=2,
+                    label=obs.name)
+
+        for c in range(round(len([*wrfs])/len(configs))):
+            estas_sims = [*wrfs][len(configs)*c:len(configs)*(c+1)]
+            if wrfs[estas_sims[0]].size == 'CP':
+                sim_name = estas_sims[0][1]
+                lower = minimo_de_varios( [ppmean_wrf[j] for j in estas_sims ] )
+                upper = maximo_de_varios( [ppmean_wrf[j] for j in estas_sims ] )
+                all_array = np.zeros( (len(estas_sims), len(time_common)) )
+                for s, sim in enumerate(estas_sims):
+                    all_array[s,:] = ppmean_wrf[sim]
+                media = np.mean(all_array, axis=0)
+                ax.fill_between(time_wrf_dt[0][2:], lower[2:], upper[2:],
+                        color=wrfs[estas_sims[0]].color,
+                        linestyle=wrfs[estas_sims[0]].linestyle,
+                        linewidth=2,
+                        alpha=0.4,
+                        )
+                ax.plot(time_wrf_dt[0][2:], media[2:],
+                        color=wrfs[estas_sims[0]].color,
+                        linestyle=wrfs[estas_sims[0]].linestyle,
+                        linewidth=2,
+                        label=wrfs[estas_sims[0]].label,
+                        )
+        
+        handles, labels = ax.get_legend_handles_labels()
+        legend = plt.legend(handles, labels, ncol=round(len([*wrfs])/len(configs))+3, loc=3, framealpha=1, frameon=True, bbox_to_anchor=(1.05,1))
+        def export_legend(legend, filename=os.path.join(ruta_figs,'_'.join([fail,caso,'acum{:02d}'.format(acum),fig_type, 'legend']))+'.png'):
+            fig  = legend.figure
+            fig.canvas.draw()
+            bbox  = legend.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+            fig.savefig(filename, dpi="figure", bbox_inches=bbox)
+
+        export_legend(legend)
 
