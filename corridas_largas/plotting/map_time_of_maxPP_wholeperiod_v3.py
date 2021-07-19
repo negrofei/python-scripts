@@ -15,6 +15,7 @@ for execution:
 import os
 import sys
 import Docpy
+from Docpy.functions import printer
 import time
 import glob
 import matplotlib.pyplot as plt
@@ -30,10 +31,10 @@ from tqdm import tqdm
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 ### Rutas y configs
 
+# Agarro los rains de cada miembro
 wrfs = [Docpy.WRF(path) for path in glob.glob('./rains*')] 
-# rains_acum03_alltimes_wrfout_<dir_of_chunks>.nc
-acum = 3
-lat, lon = wrfs[0].get_latlon()
+
+# Figs dir
 fail = sys.argv[0][:-3]     # name of script
 figsdir = os.path.abspath( os.path.join(wrfs[0].ruta,'figuras',fail) )
 try:
@@ -41,10 +42,18 @@ try:
 except:
     None
 
+# Otras cosas
+acum = 3
+lat, lon = wrfs[0].get_latlon()
+
+# Spin up de 15 días 
+spinup_time = int(15 * 24 / acum)
+printer('Spin up time:', int(spinup_time*acum/24),'días')
+
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ### Calculos
-Docpy.functions.printer(acum)
-precips = [Docpy.precip.calc_precip_acum(wrf, acum=acum)[:-1] for wrf in wrfs]
+printer('Acum', acum)
+precips = [Docpy.precip.calc_precip_acum(wrf, acum=acum)[spinup_time:-1] for wrf in wrfs]
 # mm/day (saco el último  tiempo que son 0s)
 
 ### Mapa de la hora de la precipitación máxima
@@ -56,7 +65,7 @@ precips = [Docpy.precip.calc_precip_acum(wrf, acum=acum)[:-1] for wrf in wrfs]
 # Ciclo diurno de precipitación mayor a un umbral en mm/3h
 mean_cicles = [np.ma.zeros( (int(24/acum),)+precip.shape[1:] ) for precip in precips]
 
-threshold = int(input('Threshold?\t'))
+threshold = float(input('Threshold?\t'))
 
 precip_threshold = [np.ma.masked_less(precip, threshold) for precip in precips]
 
@@ -81,7 +90,7 @@ for t in range(0,mean_cicle.shape[0]):
 ### Plot Properties
 
 plt.rcParams.update({'font.size': 14})
-box = Docpy.functions.utils['boxHR3']
+box = Docpy.functions.utils['boxHR3-44']    #Spatial spinup de 44 puntos (2 veces la relaxation)
 bordes = cfeature.NaturalEarthFeature(
         category='cultural',
         name='admin_0_boundary_lines_land',
@@ -89,6 +98,13 @@ bordes = cfeature.NaturalEarthFeature(
         edgecolor='k',
         facecolor='none',
         )
+#provincias = Docpy.plot.mapping.load_provinces()
+provincias = cfeature.NaturalEarthFeature(
+        category='cultural',
+        name='admin_1_state_provinces_lines', 
+        scale='50m', 
+        facecolor='none', 
+        edgecolor='gray')
 # Niveles
 levels = [0,3,6,9,12,15,18,21,24]
 paleta = plt.get_cmap('twilight_shifted',len(levels)+1)
@@ -110,7 +126,8 @@ mapa = axes.pcolormesh(
         )
 axes.set_extent(box)
 axes.add_feature(bordes)
-axes.coastlines('50m', color='gray')
+#axes.add_feature(provincias)
+axes.coastlines('50m', color='k')
 
 # Gridlines
 gl = axes.gridlines(draw_labels=True, color='k', alpha=0.2, linestyle='--')
